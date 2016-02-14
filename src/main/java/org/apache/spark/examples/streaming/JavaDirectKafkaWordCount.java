@@ -16,8 +16,10 @@
  */
 package org.apache.spark.examples.streaming;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +58,22 @@ public final class JavaDirectKafkaWordCount
 	private static final Pattern SPACE = Pattern.compile(" ");
 	private static final Logger LOGGER = Logger.getLogger(JavaDirectKafkaWordCount.class);
 
+	private static class ValueComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
+	{
+		private Comparator<V> comparator;
+
+		public ValueComparator(Comparator<V> comparator)
+		{
+			this.comparator = comparator;
+		}
+
+		@Override
+		public int compare(Tuple2<K, V> o1, Tuple2<K, V> o2)
+		{
+			return comparator.compare(o1._2(), o2._2());
+		}
+	}
+
 	public static void main(String[] args)
 	{
 		if (args.length < 2) {
@@ -78,11 +96,11 @@ public final class JavaDirectKafkaWordCount
 		// Create context with 2 second batch interval
 		SparkConf sparkConf = new SparkConf().setAppName("JavaDirectKafkaWordCount");
 
-		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(2))) {
+		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
 
 			// must set for statefull operations
 			jssc.checkpoint(".");
-			
+
 			// initialize Kafka Consumer
 			HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
 			HashMap<String, String> kafkaParams = new HashMap<String, String>();
@@ -118,21 +136,19 @@ public final class JavaDirectKafkaWordCount
 				{
 					return new Tuple2<String, Integer>(s, 1);
 				}
-			})/*.reduceByKey(new Function2<Integer, Integer, Integer>() {
-				@Override
-				public Integer call(Integer i1, Integer i2)
-				{
-					return i1 + i2;
-				}
-			})*/;
-
+			})/*
+				 * .reduceByKey(new Function2<Integer, Integer, Integer>() {
+				 * 
+				 * @Override public Integer call(Integer i1, Integer i2) { return i1 + i2; } })
+				 */;
 
 			LOGGER.info("----***#### Starting KafkaWordCount ####***----");
-			
+
 			// Statefull
-			List<Tuple2<String, Integer>> tuples = new ArrayList<>();//Arrays.asList(new Tuple2<String, Integer>("hello", 1), new Tuple2<String, Integer>("world", 1));
+			List<Tuple2<String, Integer>> tuples = new ArrayList<>();// Arrays.asList(new Tuple2<String, Integer>("hello", 1), new Tuple2<String,
+																		// Integer>("world", 1));
 			JavaPairRDD<String, Integer> initialRDD = jssc.sc().parallelizePairs(tuples);
-			
+
 			// Update the cumulative count function
 			final Function2<List<Integer>, Optional<Integer>, Optional<Integer>> updateFunction = new Function2<List<Integer>, Optional<Integer>, Optional<Integer>>() {
 				@Override
@@ -146,13 +162,19 @@ public final class JavaDirectKafkaWordCount
 				}
 			};
 
-			
 			// This will give a Dstream made of state (which is the cumulative count of the words)
 			JavaPairDStream<String, Integer> stateDstream = wordCounts.updateStateByKey(updateFunction, new HashPartitioner(jssc.sc().defaultParallelism()),
 					initialRDD);
 
 			stateDstream.print();
-			
+
+			// Top words
+			stateDstream.foreachRDD(rdd -> {
+				List<Tuple2<String, Integer>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Integer> naturalOrder()));
+				System.out.println("Top Words: " + topWords);
+				return null;
+			});
+
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
