@@ -149,7 +149,8 @@ public final class JavaDirectKafkaWordCount
 
 			// Top words
 			stateDstream.foreachRDD(rdd -> {
-				List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
+				//List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
+				List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
 				System.out.println("Top Words: " + topWords);
 				return null;
 			});
