@@ -16,6 +16,7 @@
  */
 package org.apache.spark.examples.streaming;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,6 +25,7 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
@@ -37,6 +39,7 @@ import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
 
+import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
 
 import kafka.serializer.StringDecoder;
@@ -112,17 +115,41 @@ public final class JavaDirectKafkaWordCount
 				{
 					return new Tuple2<String, Integer>(s, 1);
 				}
-			}).reduceByKey(new Function2<Integer, Integer, Integer>() {
+			})/*.reduceByKey(new Function2<Integer, Integer, Integer>() {
 				@Override
 				public Integer call(Integer i1, Integer i2)
 				{
 					return i1 + i2;
 				}
-			});
+			})*/;
 
 
 			LOGGER.info("----***#### Starting KafkaWordCount ####***----");
-			wordCounts.print();
+			
+			// Statefull
+			List<Tuple2<String, Integer>> tuples = new ArrayList<>();//Arrays.asList(new Tuple2<String, Integer>("hello", 1), new Tuple2<String, Integer>("world", 1));
+			JavaPairRDD<String, Integer> initialRDD = jssc.sc().parallelizePairs(tuples);
+			
+			// Update the cumulative count function
+			final Function2<List<Integer>, Optional<Integer>, Optional<Integer>> updateFunction = new Function2<List<Integer>, Optional<Integer>, Optional<Integer>>() {
+				@Override
+				public Optional<Integer> call(List<Integer> values, Optional<Integer> state)
+				{
+					Integer newSum = state.or(0);
+					for (Integer value : values) {
+						newSum += value;
+					}
+					return Optional.of(newSum);
+				}
+			};
+
+			
+			// This will give a Dstream made of state (which is the cumulative count of the words)
+			JavaPairDStream<String, Integer> stateDstream = wordCounts.updateStateByKey(updateFunction, new HashPartitioner(jssc.sc().defaultParallelism()),
+					initialRDD);
+
+			stateDstream.print();
+			
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
