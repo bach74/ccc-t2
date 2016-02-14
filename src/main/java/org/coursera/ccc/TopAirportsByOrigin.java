@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.examples.streaming;
+package org.coursera.ccc;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -22,10 +22,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.regex.Pattern;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
@@ -47,11 +44,8 @@ import scala.Tuple2;
  *
  * Example: $ bin/run-example streaming.KafkaWordCount broker1-host:port,broker2-host:port topic1,topic2
  */
-public final class JavaDirectKafkaWordCount
+public final class TopAirportsByOrigin
 {
-	private static final Pattern SPACE = Pattern.compile(" ");
-
-	private static final Logger LOGGER = Logger.getLogger(JavaDirectKafkaWordCount.class);
 
 	private static Function2<Long, Long, Long> SUM_REDUCER = (a, b) -> a + b;
 
@@ -82,24 +76,16 @@ public final class JavaDirectKafkaWordCount
 	public static void main(String[] args)
 	{
 		if (args.length < 2) {
-			System.err.println("Usage: DirectKafkaWordCount <brokers> <topics>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
+			System.err.println("Usage: TopAirportsByOrigin <brokers> <topics>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
 					+ "  <topics> is a list of one or more kafka topics to consume from\n\n");
 			System.exit(1);
-		}
-
-		boolean log4jInitialized = Logger.getRootLogger().getAllAppenders().hasMoreElements();
-		if (!log4jInitialized) {
-			// We first log something to initialize Spark's default logging, then we override the
-			// logging level.
-			LOGGER.info("Setting log level to [WARN] for streaming example." + " To override add a custom log4j.properties to the classpath.");
-			Logger.getRootLogger().setLevel(Level.WARN);
 		}
 
 		String brokers = args[0];
 		String topics = args[1];
 
 		// Create context with 2 second batch interval
-		SparkConf sparkConf = new SparkConf().setAppName("JavaDirectKafkaWordCount");
+		SparkConf sparkConf = new SparkConf().setAppName("TopAirportsByOrigin");
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(4))) {
 
@@ -126,32 +112,19 @@ public final class JavaDirectKafkaWordCount
 
 			JavaDStream<OriginDestInput> originDestinationStream = lines.map(OriginDestInput::parseFromLogLine);
 
-			// Now we have non-empty lines, lets split them into words
-			/*
-			 * JavaDStream<String> words = lines.flatMap(new FlatMapFunction<String, String>() {
-			 * 
-			 * @Override public Iterable<String> call(String x) { return Lists.newArrayList(SPACE.split(x)); } });
-			 * 
-			 * // Convert words to Pairs, remember the TextPair class in Hadoop world JavaPairDStream<String, Long> wordCounts = words.mapToPair(new
-			 * PairFunction<String, String, Long>() {
-			 * 
-			 * @Override public Tuple2<String, Long> call(String s) { return new Tuple2<String, Long>(s, 1L); } });
-			 */
-
-			LOGGER.info("----***#### Starting KafkaWordCount ####***----");
-
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-
 			JavaPairDStream<String, Long> stateDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getOrigin(), 1L)).reduceByKey(SUM_REDUCER)
 					.updateStateByKey(COMPUTE_RUNNING_SUM);
 
 			stateDstream.print();
 
-			// Top words
+			// Top 10 Airports by origin
 			stateDstream.foreachRDD(rdd -> {
-				//List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
-				List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
-				System.out.println("Top Words: " + topWords);
+				// List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
+				List<Tuple2<String, Long>> topAirportsbyOrigin = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
+				System.out.println("--------------------------------------------------------------------------------------------");
+				System.out.println("Top Words: " + topAirportsbyOrigin);
+				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
 			});
 

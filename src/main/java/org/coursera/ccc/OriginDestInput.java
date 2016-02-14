@@ -1,4 +1,4 @@
-package org.apache.spark.examples.streaming;
+package org.coursera.ccc;
 
 import java.io.Serializable;
 import java.util.logging.Level;
