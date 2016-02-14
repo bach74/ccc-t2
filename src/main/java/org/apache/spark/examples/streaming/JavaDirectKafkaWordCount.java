@@ -81,6 +81,7 @@ public final class JavaDirectKafkaWordCount
 			HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
 			HashMap<String, String> kafkaParams = new HashMap<String, String>();
 			kafkaParams.put("metadata.broker.list", brokers);
+			// start from begin
 			kafkaParams.put("auto.offset.reset", "smallest");
 			// Create direct kafka stream with brokers and topics
 			JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(jssc, String.class, String.class, StringDecoder.class,
@@ -119,18 +120,6 @@ public final class JavaDirectKafkaWordCount
 				}
 			});
 
-			// Just for debugging, NOT FOR PRODUCTION
-			wordCounts.foreach(new Function<JavaPairRDD<String, Integer>, Void>() {
-				@Override
-				public Void call(JavaPairRDD<String, Integer> t) throws Exception
-				{
-					List<Tuple2<String, Integer>> list = t.collect();
-					for (Tuple2<String, Integer> l : list) {
-						LOGGER.info(String.format("%s - %d", l._1(), l._2()));
-					}
-					return null;
-				}
-			});
 
 			LOGGER.info("----***#### Starting KafkaWordCount ####***----");
 			wordCounts.print();
