@@ -17,7 +17,6 @@
 package org.apache.spark.examples.streaming;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,13 +26,9 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
-import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
@@ -42,7 +37,6 @@ import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
 
 import com.google.common.base.Optional;
-import com.google.common.collect.Lists;
 
 import kafka.serializer.StringDecoder;
 import scala.Tuple2;
@@ -56,7 +50,10 @@ import scala.Tuple2;
 public final class JavaDirectKafkaWordCount
 {
 	private static final Pattern SPACE = Pattern.compile(" ");
+
 	private static final Logger LOGGER = Logger.getLogger(JavaDirectKafkaWordCount.class);
+
+	private static Function2<Long, Long, Long> SUM_REDUCER = (a, b) -> a + b;
 
 	private static class ValueComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
 	{
@@ -73,6 +70,14 @@ public final class JavaDirectKafkaWordCount
 			return comparator.compare(o1._2(), o2._2());
 		}
 	}
+
+	private static Function2<List<Long>, Optional<Long>, Optional<Long>> COMPUTE_RUNNING_SUM = (nums, current) -> {
+		long sum = current.or(0L);
+		for (long i : nums) {
+			sum += i;
+		}
+		return Optional.of(sum);
+	};
 
 	public static void main(String[] args)
 	{
@@ -96,7 +101,7 @@ public final class JavaDirectKafkaWordCount
 		// Create context with 2 second batch interval
 		SparkConf sparkConf = new SparkConf().setAppName("JavaDirectKafkaWordCount");
 
-		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
+		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(4))) {
 
 			// must set for statefull operations
 			jssc.checkpoint(".");
@@ -111,7 +116,6 @@ public final class JavaDirectKafkaWordCount
 			JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(jssc, String.class, String.class, StringDecoder.class,
 					StringDecoder.class, kafkaParams, topicsSet);
 
-			// Get the lines, split them into words, count the words and print
 			JavaDStream<String> lines = messages.map(new Function<Tuple2<String, String>, String>() {
 				@Override
 				public String call(Tuple2<String, String> tuple2)
@@ -120,57 +124,32 @@ public final class JavaDirectKafkaWordCount
 				}
 			});
 
-			// Now we have non-empty lines, lets split them into words
-			JavaDStream<String> words = lines.flatMap(new FlatMapFunction<String, String>() {
-				@Override
-				public Iterable<String> call(String x)
-				{
-					return Lists.newArrayList(SPACE.split(x));
-				}
-			});
+			JavaDStream<OriginDestInput> originDestinationStream = lines.map(OriginDestInput::parseFromLogLine);
 
-			// Convert words to Pairs, remember the TextPair class in Hadoop world
-			JavaPairDStream<String, Integer> wordCounts = words.mapToPair(new PairFunction<String, String, Integer>() {
-				@Override
-				public Tuple2<String, Integer> call(String s)
-				{
-					return new Tuple2<String, Integer>(s, 1);
-				}
-			})/*
-				 * .reduceByKey(new Function2<Integer, Integer, Integer>() {
-				 * 
-				 * @Override public Integer call(Integer i1, Integer i2) { return i1 + i2; } })
-				 */;
+			// Now we have non-empty lines, lets split them into words
+			/*
+			 * JavaDStream<String> words = lines.flatMap(new FlatMapFunction<String, String>() {
+			 * 
+			 * @Override public Iterable<String> call(String x) { return Lists.newArrayList(SPACE.split(x)); } });
+			 * 
+			 * // Convert words to Pairs, remember the TextPair class in Hadoop world JavaPairDStream<String, Long> wordCounts = words.mapToPair(new
+			 * PairFunction<String, String, Long>() {
+			 * 
+			 * @Override public Tuple2<String, Long> call(String s) { return new Tuple2<String, Long>(s, 1L); } });
+			 */
 
 			LOGGER.info("----***#### Starting KafkaWordCount ####***----");
 
-			// Statefull
-			List<Tuple2<String, Integer>> tuples = new ArrayList<>();// Arrays.asList(new Tuple2<String, Integer>("hello", 1), new Tuple2<String,
-																		// Integer>("world", 1));
-			JavaPairRDD<String, Integer> initialRDD = jssc.sc().parallelizePairs(tuples);
-
-			// Update the cumulative count function
-			final Function2<List<Integer>, Optional<Integer>, Optional<Integer>> updateFunction = new Function2<List<Integer>, Optional<Integer>, Optional<Integer>>() {
-				@Override
-				public Optional<Integer> call(List<Integer> values, Optional<Integer> state)
-				{
-					Integer newSum = state.or(0);
-					for (Integer value : values) {
-						newSum += value;
-					}
-					return Optional.of(newSum);
-				}
-			};
-
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, Integer> stateDstream = wordCounts.updateStateByKey(updateFunction, new HashPartitioner(jssc.sc().defaultParallelism()),
-					initialRDD);
+
+			JavaPairDStream<String, Long> stateDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getOrigin(), 1L)).reduceByKey(SUM_REDUCER)
+					.updateStateByKey(COMPUTE_RUNNING_SUM);
 
 			stateDstream.print();
 
 			// Top words
 			stateDstream.foreachRDD(rdd -> {
-				List<Tuple2<String, Integer>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Integer> naturalOrder()));
+				List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
 				System.out.println("Top Words: " + topWords);
 				return null;
 			});
