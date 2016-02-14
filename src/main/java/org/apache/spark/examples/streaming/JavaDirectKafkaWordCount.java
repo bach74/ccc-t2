@@ -80,6 +80,9 @@ public final class JavaDirectKafkaWordCount
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(2))) {
 
+			// must set for statefull operations
+			jssc.checkpoint(".");
+			
 			// initialize Kafka Consumer
 			HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
 			HashMap<String, String> kafkaParams = new HashMap<String, String>();
