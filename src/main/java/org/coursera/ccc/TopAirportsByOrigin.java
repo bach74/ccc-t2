@@ -113,17 +113,30 @@ public final class TopAirportsByOrigin
 			JavaDStream<OriginDestInput> originDestinationStream = lines.map(OriginDestInput::parseFromLogLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, Long> stateDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getOrigin(), 1L)).reduceByKey(SUM_REDUCER)
+			JavaPairDStream<String, Long> originDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getOrigin(), 1L)).reduceByKey(SUM_REDUCER)
 					.updateStateByKey(COMPUTE_RUNNING_SUM);
 
-			stateDstream.print();
+			JavaPairDStream<String, Long> destDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getDestination(), 1L)).reduceByKey(SUM_REDUCER)
+					.updateStateByKey(COMPUTE_RUNNING_SUM);
+
+			originDstream.print();
 
 			// Top 10 Airports by origin
-			stateDstream.foreachRDD(rdd -> {
+			originDstream.foreachRDD(rdd -> {
 				// List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
 				List<Tuple2<String, Long>> topAirportsbyOrigin = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
 				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("Top Words: " + topAirportsbyOrigin);
+				System.out.println("Top 10 Airport (by Origin): " + topAirportsbyOrigin);
+				System.out.println("--------------------------------------------------------------------------------------------");
+				return null;
+			});
+
+			// Top 10 Airports by origin
+			destDstream.foreachRDD(rdd -> {
+				// List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
+				List<Tuple2<String, Long>> topAirportsbyDestination = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
+				System.out.println("--------------------------------------------------------------------------------------------");
+				System.out.println("Top 10 Airport (by Destination): " + topAirportsbyDestination);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
 			});
