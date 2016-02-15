@@ -1,7 +1,6 @@
 package org.coursera.ccc.q12;
 
 import java.io.Serializable;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,9 +13,10 @@ import com.google.common.primitives.Doubles;
  */
 public class OnTime implements Serializable
 {
-	private static final Logger LOGGER = Logger.getLogger("Origin_Dest_CSV");
+	//	private static final Logger LOGGER = Logger.getLogger("Origin_Dest_CSV");
 
-	//private static final String ONTIME_PATTERN = "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+[\\.\\d+]?),(\\d+[\\.\\d+]?)";
+	// private static final String ONTIME_PATTERN =
+	// "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+[\\.\\d+]?),(\\d+[\\.\\d+]?)";
 
 	private static final String ONTIME_PATTERN = "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+\\.?\\d*),(\\d+\\.?\\d*)";
 
@@ -33,22 +33,20 @@ public class OnTime implements Serializable
 
 	public static OnTime parseOneLine(String line)
 	{
-		if (!line.contains("UniqueCarrier")) {
-			Matcher m = PATTERN.matcher(line);
-			if (!m.find()) {
-				LOGGER.log(Level.SEVERE, "Cannot parse on_time line" + line);
-				throw new RuntimeException("Error parsing on_time line" + line);
-			}
-
-			String uniqueCarrier = m.group(5);
-			String arrDelayMinutes = m.group(9);
-			Double delay = Doubles.tryParse(arrDelayMinutes);
-			if (delay == null) {
-				delay = 0.0;
-			}
-			return new OnTime(uniqueCarrier, delay);
+		Matcher m = PATTERN.matcher(line);
+		if (!m.find()) {
+			// LOGGER.log(Level.SEVERE, "Cannot parse on_time line" + line);
+			// throw new RuntimeException("Error parsing on_time line" + line);
+			return new OnTime("N.A", Double.MAX_VALUE);
 		}
-		return null;
+
+		String uniqueCarrier = m.group(5);
+		String arrDelayMinutes = m.group(9);
+		Double delay = Doubles.tryParse(arrDelayMinutes);
+		if (delay == null) {
+			delay = 0.0;
+		}
+		return new OnTime(uniqueCarrier, delay);
 	}
 
 	@Override
