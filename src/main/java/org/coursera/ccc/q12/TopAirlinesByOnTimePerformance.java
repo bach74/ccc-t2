@@ -114,7 +114,9 @@ public final class TopAirlinesByOnTimePerformance
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
 			JavaPairDStream<String, Double> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
-					.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM);
+					.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM).mapValues(
+						
+					);
 
 			performance.print();
 
@@ -122,6 +124,7 @@ public final class TopAirlinesByOnTimePerformance
 			performance.foreachRDD(rdd -> {
 				List<Tuple2<String, Double>> topCarriersByArrivalPerformance = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Double> naturalOrder()));
 				System.out.println("--------------------------------------------------------------------------------------------");
+				System.out.println("#="+rdd.count());
 				System.out.println("Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
