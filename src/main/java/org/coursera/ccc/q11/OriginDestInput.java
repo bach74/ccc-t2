@@ -1,4 +1,4 @@
-package org.coursera.ccc;
+package org.coursera.ccc.q11;
 
 import java.io.Serializable;
 import java.util.logging.Level;
@@ -12,6 +12,12 @@ import java.util.regex.Pattern;
 public class OriginDestInput implements Serializable
 {
 	private static final Logger LOGGER = Logger.getLogger("Origin_Dest_CSV");
+
+	private static final String LINE_PATTERN =
+	// "1:ORIGIN","2:DESTINATION"
+	"^\"(\\S+)\",\"(\\S+)\"";
+
+	private static final Pattern PATTERN = Pattern.compile(LINE_PATTERN);
 
 	private String origin;
 	private String destination;
@@ -42,21 +48,11 @@ public class OriginDestInput implements Serializable
 		this.destination = destination;
 	}
 
-	// Example Apache log line:
-	// 127.0.0.1 - - [21/Jul/2014:9:55:27 -0800] "GET /home.html HTTP/1.1" 200 2048
-	private static final String LOG_ENTRY_PATTERN =
-	// "1:ORIGIN","2:DESTINATION"
-	"^\"(\\S+)\",\"(\\S+)\"";
-	// 1:IP 2:client 3:user 4:date time 5:method 6:req 7:proto 8:respcode 9:size
-	// "^(\\S+) (\\S+) (\\S+) \\[([\\w:/]+\\s[+\\-]\\d{4})\\] \"(\\S+) (\\S+) (\\S+)\" (\\d{3}) (\\d+)";
-
-	private static final Pattern PATTERN = Pattern.compile(LOG_ENTRY_PATTERN);
-
-	public static OriginDestInput parseFromLogLine(String logline)
+	public static OriginDestInput parseOneLine(String line)
 	{
-		Matcher m = PATTERN.matcher(logline);
+		Matcher m = PATTERN.matcher(line);
 		if (!m.find()) {
-			LOGGER.log(Level.ALL, "Cannot parse logline" + logline);
+			LOGGER.log(Level.ALL, "Cannot parse logline" + line);
 			throw new RuntimeException("Error parsing logline");
 		}
 

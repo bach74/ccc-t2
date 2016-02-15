@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.coursera.ccc;
+package org.coursera.ccc.q12;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
@@ -44,10 +45,14 @@ import scala.Tuple2;
  *
  * Example: $ bin/run-example streaming.KafkaWordCount broker1-host:port,broker2-host:port topic1,topic2
  */
-public final class TopAirportsByOrigin
+public final class TopAirlinesByOnTimePerformance
 {
 
-	private static Function2<Long, Long, Long> SUM_REDUCER = (a, b) -> a + b;
+	private static Function2<Double, Double, Double> SUM_REDUCER = (a, b) -> a + b;
+
+	// These static variables stores the running content size values.
+	private static final AtomicLong runningCount = new AtomicLong(0);
+	private static final AtomicLong runningSum = new AtomicLong(0);
 
 	private static class ValueComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
 	{
@@ -64,10 +69,10 @@ public final class TopAirportsByOrigin
 			return comparator.compare(o1._2(), o2._2());
 		}
 	}
-
-	private static Function2<List<Long>, Optional<Long>, Optional<Long>> COMPUTE_RUNNING_SUM = (nums, current) -> {
-		long sum = current.or(0L);
-		for (long i : nums) {
+	
+	private static Function2<List<Double>, Optional<Double>, Optional<Double>> COMPUTE_RUNNING_SUM = (nums, current) -> {
+		double sum = current.or(0.0);
+		for (double i : nums) {
 			sum += i;
 		}
 		return Optional.of(sum);
@@ -76,7 +81,7 @@ public final class TopAirportsByOrigin
 	public static void main(String[] args)
 	{
 		if (args.length < 2) {
-			System.err.println("Usage: TopAirportsByOrigin <brokers> <topics>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
+			System.err.println("Usage: TopAirlinesByOnTimePerformance <brokers> <topics>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
 					+ "  <topics> is a list of one or more kafka topics to consume from\n\n");
 			System.exit(1);
 		}
@@ -85,7 +90,7 @@ public final class TopAirportsByOrigin
 		String topics = args[1];
 
 		// Create context with 2 second batch interval
-		SparkConf sparkConf = new SparkConf().setAppName("TopAirportsByOrigin");
+		SparkConf sparkConf = new SparkConf().setAppName("TopAirlinesByOnTimePerformance");
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(4))) {
 
@@ -110,33 +115,19 @@ public final class TopAirportsByOrigin
 				}
 			});
 
-			JavaDStream<OriginDestInput> originDestinationStream = lines.map(OriginDestInput::parseFromLogLine);
+			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, Long> originDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getOrigin(), 1L)).reduceByKey(SUM_REDUCER)
-					.updateStateByKey(COMPUTE_RUNNING_SUM);
+			JavaPairDStream<String, Double> carrierDstream = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()));
+			JavaPairDStream<String, Double> performance = carrierDstream.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM);
 
-			JavaPairDStream<String, Long> destDstream = originDestinationStream.mapToPair(s -> new Tuple2<>(s.getDestination(), 1L)).reduceByKey(SUM_REDUCER)
-					.updateStateByKey(COMPUTE_RUNNING_SUM);
-
-			originDstream.print();
+			performance.print();
 
 			// Top 10 Airports by origin
-			originDstream.foreachRDD(rdd -> {
-				// List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
-				List<Tuple2<String, Long>> topAirportsbyOrigin = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
+			performance.foreachRDD(rdd -> {
+				List<Tuple2<String, Double>> topCarriersByArrivalPerformance = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Double> naturalOrder()));
 				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("Top 10 Airport (by Origin): " + topAirportsbyOrigin);
-				System.out.println("--------------------------------------------------------------------------------------------");
-				return null;
-			});
-
-			// Top 10 Airports by origin
-			destDstream.foreachRDD(rdd -> {
-				// List<Tuple2<String, Long>> topWords = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> naturalOrder()));
-				List<Tuple2<String, Long>> topAirportsbyDestination = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Long> reverseOrder()));
-				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("Top 10 Airport (by Destination): " + topAirportsbyDestination);
+				System.out.println("Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
 			});
