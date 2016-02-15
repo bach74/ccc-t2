@@ -36,8 +36,8 @@ public class OnTime implements Serializable
 		if (!line.contains("UniqueCarrier")) {
 			Matcher m = PATTERN.matcher(line);
 			if (!m.find()) {
-				LOGGER.log(Level.ALL, "Cannot parse on_time line" + line);
-				throw new RuntimeException("Error parsing on_time line");
+				LOGGER.log(Level.SEVERE, "Cannot parse on_time line" + line);
+				throw new RuntimeException("Error parsing on_time line" + line);
 			}
 
 			String uniqueCarrier = m.group(5);
