@@ -52,8 +52,8 @@ public class OriginDestInput implements Serializable
 	{
 		Matcher m = PATTERN.matcher(line);
 		if (!m.find()) {
-			LOGGER.log(Level.ALL, "Cannot parse logline" + line);
-			throw new RuntimeException("Error parsing logline");
+			LOGGER.log(Level.ALL, "Cannot parse origin_dest line" + line);
+			throw new RuntimeException("Error parsing origin_dest line");
 		}
 
 		return new OriginDestInput(m.group(1), m.group(2));

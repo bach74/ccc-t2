@@ -22,7 +22,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
@@ -50,10 +49,6 @@ public final class TopAirlinesByOnTimePerformance
 
 	private static Function2<Double, Double, Double> SUM_REDUCER = (a, b) -> a + b;
 
-	// These static variables stores the running content size values.
-	private static final AtomicLong runningCount = new AtomicLong(0);
-	private static final AtomicLong runningSum = new AtomicLong(0);
-
 	private static class ValueComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
 	{
 		private Comparator<V> comparator;
@@ -69,7 +64,7 @@ public final class TopAirlinesByOnTimePerformance
 			return comparator.compare(o1._2(), o2._2());
 		}
 	}
-	
+
 	private static Function2<List<Double>, Optional<Double>, Optional<Double>> COMPUTE_RUNNING_SUM = (nums, current) -> {
 		double sum = current.or(0.0);
 		for (double i : nums) {

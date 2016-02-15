@@ -16,9 +16,9 @@ public class OnTime implements Serializable
 {
 	private static final Logger LOGGER = Logger.getLogger("Origin_Dest_CSV");
 
-	// Example Apache log line:
-	// 127.0.0.1 - - [21/Jul/2014:9:55:27 -0800] "GET /home.html HTTP/1.1" 200 2048
-	private static final String ONTIME_PATTERN = "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+[\\.\\d+]?),(\\d+[\\.\\d+]?)";
+	//private static final String ONTIME_PATTERN = "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+[\\.\\d+]?),(\\d+[\\.\\d+]?)";
+
+	private static final String ONTIME_PATTERN = "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+\\.?\\d*),(\\d+\\.?\\d*)";
 
 	private static final Pattern PATTERN = Pattern.compile(ONTIME_PATTERN);
 
@@ -33,19 +33,22 @@ public class OnTime implements Serializable
 
 	public static OnTime parseOneLine(String line)
 	{
-		Matcher m = PATTERN.matcher(line);
-		if (!m.find()) {
-			LOGGER.log(Level.ALL, "Cannot parse logline" + line);
-			throw new RuntimeException("Error parsing logline");
-		}
+		if (!line.contains("UniqueCarrier")) {
+			Matcher m = PATTERN.matcher(line);
+			if (!m.find()) {
+				LOGGER.log(Level.ALL, "Cannot parse on_time line" + line);
+				throw new RuntimeException("Error parsing on_time line");
+			}
 
-		String uniqueCarrier = m.group(5);
-		String arrDelayMinutes = m.group(9);
-		Double delay = Doubles.tryParse(arrDelayMinutes);
-		if (delay == null) {
-			delay = 0.0;
+			String uniqueCarrier = m.group(5);
+			String arrDelayMinutes = m.group(9);
+			Double delay = Doubles.tryParse(arrDelayMinutes);
+			if (delay == null) {
+				delay = 0.0;
+			}
+			return new OnTime(uniqueCarrier, delay);
 		}
-		return new OnTime(uniqueCarrier, delay);
+		return null;
 	}
 
 	@Override
