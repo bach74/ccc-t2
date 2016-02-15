@@ -113,9 +113,8 @@ public final class TopAirlinesByOnTimePerformance
 			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			//JavaPairDStream<String, Double> carrierDstream = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()));
-			JavaPairDStream<String, Double> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), 1.0)).reduceByKey(SUM_REDUCER)
-					.updateStateByKey(COMPUTE_RUNNING_SUM);
+			JavaPairDStream<String, Double> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
+					.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM);
 
 			performance.print();
 
