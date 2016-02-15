@@ -116,7 +116,11 @@ public final class TopAirlinesByOnTimePerformance
 			JavaPairDStream<String, Double> carrierDstream = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()));
 			JavaPairDStream<String, Double> performance = carrierDstream.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM);
 
+			System.out.println("---");
+			carrierDstream.print();
+			System.out.println("---");
 			performance.print();
+			System.out.println("---");
 
 			// Top 10 Airports by origin
 			performance.foreachRDD(rdd -> {
