@@ -77,7 +77,7 @@ public final class TopAirlinesByOnTimePerformance
 
 	// Return a new DStream by selecting only the records of the source DStream on which func returns true
 	private static Function<String, Boolean> FILTER_HEADER = x -> {
-		return x.contains("UniqueCarrier") ? false : true;
+		return x.contains("UniqueCarrier") ? true : false;
 	};
 
 	private static Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
