@@ -48,13 +48,11 @@ import scala.Tuple2;
 public final class TopAirlinesByOnTimePerformance
 {
 
-	private static Function2<Double, Double, Double> SUM_REDUCER = (a, b) -> a + b;
-
-	private static class ValueComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
+	private static class AverageComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
 	{
 		private Comparator<V> comparator;
 
-		public ValueComparator(Comparator<V> comparator)
+		public AverageComparator(Comparator<V> comparator)
 		{
 			this.comparator = comparator;
 		}
@@ -66,12 +64,24 @@ public final class TopAirlinesByOnTimePerformance
 		}
 	}
 
-	private static Function2<List<Double>, Optional<Double>, Optional<Double>> COMPUTE_RUNNING_SUM = (nums, current) -> {
-		double sum = current.or(0.0);
-		for (double i : nums) {
-			sum += i;
+	private static Function2<List<Tuple2<Double, Integer>>, Optional<CountAndSum>, Optional<CountAndSum>> COMPUTE_RUNNING_SUM = (nums, current) -> {
+
+		CountAndSum sum = current.or(new CountAndSum(0.0, 0));
+		for (Tuple2<Double, Integer> t : nums) {
+			sum.add(t._1(), t._2());
 		}
 		return Optional.of(sum);
+	};
+
+	private static Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
+
+	private static Function2<Tuple2<Double, Integer>, Double, Tuple2<Double, Integer>> addAndCount = (Tuple2<Double, Integer> x, Double y) -> {
+		return new Tuple2<Double, Integer>(x._1() + y, x._2() + 1);
+	};
+
+	private static Function2<Tuple2<Double, Integer>, Tuple2<Double, Integer>, Tuple2<Double, Integer>> combine = (Tuple2<Double, Integer> x,
+			Tuple2<Double, Integer> y) -> {
+		return new Tuple2<Double, Integer>(x._1() + y._1(), x._2() + y._2());
 	};
 
 	public static void main(String[] args)
@@ -114,41 +124,18 @@ public final class TopAirlinesByOnTimePerformance
 			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, Double> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
-					//.reduceByKey(SUM_REDUCER)
-					//.updateStateByKey(COMPUTE_RUNNING_SUM)
-					;
+			JavaPairDStream<String, CountAndSum> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
+					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
+					// .reduceByKey(SUM_REDUCER)
+					.updateStateByKey(COMPUTE_RUNNING_SUM);
 
-			Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
-
-			Function2<Tuple2<Double, Integer>, Double, Tuple2<Double, Integer>> addAndCount = (Tuple2<Double, Integer> x, Double y) -> {
-				return new Tuple2(x._1() + y, x._2() + 1);
-			};
-
-			Function2<Tuple2<Double, Integer>, Tuple2<Double, Integer>, Tuple2<Double, Integer>> combine = (Tuple2<Double, Integer> x,
-					Tuple2<Double, Integer> y) -> {
-				return new Tuple2(x._1() + y._1(), x._2() + y._2());
-			};
-
-			JavaPairDStream<String, Tuple2<Double, Integer>> combineByKey = performance.combineByKey(createAcc, addAndCount, combine,
-					new HashPartitioner(jssc.sc().defaultParallelism()));
-			
 			performance.print();
 
-			// Top 10 Airports by origin
 			performance.foreachRDD(rdd -> {
-				List<Tuple2<String, Double>> topCarriersByArrivalPerformance = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Double> naturalOrder()));
+				List<Tuple2<String, CountAndSum>> topCarriersByArrivalPerformance = rdd.takeOrdered(10,
+						new AverageComparator<>(Comparator.<CountAndSum> naturalOrder()));
 				System.out.println("--------------------------------------------------------------------------------------------");
 				System.out.println("Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
-				System.out.println("--------------------------------------------------------------------------------------------");
-				return null;
-			});
-			
-			// Top 10 Airports by origin
-			combineByKey.foreachRDD(rdd -> {
-				List<Tuple2<String, Tuple2<Double, Integer>>> topCarriersByArrivalPerformance = rdd.take(5);
-				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("DEBUG: " + topCarriersByArrivalPerformance);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
 			});
