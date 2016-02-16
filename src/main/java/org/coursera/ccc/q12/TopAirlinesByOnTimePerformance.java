@@ -73,6 +73,13 @@ public final class TopAirlinesByOnTimePerformance
 		return Optional.of(sum);
 	};
 
+	private static Function<Tuple2<String, String>, String> MAP_LINES = x -> x._2();
+
+	// Return a new DStream by selecting only the records of the source DStream on which func returns true
+	private static Function<String, Boolean> FILTER_HEADER = x -> {
+		return x.contains("UniqueCarrier") ? false : true;
+	};
+
 	private static Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
 
 	private static Function2<Tuple2<Double, Integer>, Double, Tuple2<Double, Integer>> addAndCount = (Tuple2<Double, Integer> x, Double y) -> {
@@ -113,21 +120,13 @@ public final class TopAirlinesByOnTimePerformance
 			JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(jssc, String.class, String.class, StringDecoder.class,
 					StringDecoder.class, kafkaParams, topicsSet);
 
-			JavaDStream<String> lines = messages.map(new Function<Tuple2<String, String>, String>() {
-				@Override
-				public String call(Tuple2<String, String> tuple2)
-				{
-					return tuple2._2();
-				}
-			});
+			JavaDStream<String> lines = messages.map(MAP_LINES).filter(FILTER_HEADER);
 
 			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
 			JavaPairDStream<String, CountAndSum> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
-					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
-					// .reduceByKey(SUM_REDUCER)
-					.updateStateByKey(COMPUTE_RUNNING_SUM);
+					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism())).updateStateByKey(COMPUTE_RUNNING_SUM);
 
 			performance.print();
 
