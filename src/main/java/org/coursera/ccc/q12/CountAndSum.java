@@ -44,6 +44,6 @@ public class CountAndSum implements Comparable<CountAndSum>, Serializable
 	@Override
 	public String toString()
 	{
-		return String.format("Avg: %.2f, Sum: %.2f, Size: %.2f", this.sum / this.count, this.sum, this.count);
+		return String.format("Avg: %.2f, Sum: %.2f, Size: %d", this.sum / this.count, this.sum, this.count);
 	}
 }
