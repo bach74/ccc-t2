@@ -36,7 +36,7 @@ public class OnTime implements Serializable
 		if (!m.find()) {
 			// LOGGER.log(Level.SEVERE, "Cannot parse on_time line" + line);
 			// throw new RuntimeException("Error parsing on_time line" + line);
-			return new OnTime("N.A", 99999999.0);
+			return new OnTime("#N.A.", 99999999.0);
 		}
 
 		String uniqueCarrier = m.group(5);

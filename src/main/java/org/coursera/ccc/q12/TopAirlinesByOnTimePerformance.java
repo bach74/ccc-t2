@@ -77,7 +77,11 @@ public final class TopAirlinesByOnTimePerformance
 
 	// Return a new DStream by selecting only the records of the source DStream on which func returns true
 	private static Function<String, Boolean> FILTER_HEADER = x -> {
-		return x.contains("UniqueCarrier") ? true : false;
+		return x.contains("UniqueCarrier") ? false : true;
+	};
+
+	private static Function<Tuple2<String, CountAndSum>, Boolean> FILTER_NA = x -> {
+		return x._1().contains("#N.A.") ? false : true;
 	};
 
 	private static Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
@@ -131,7 +135,7 @@ public final class TopAirlinesByOnTimePerformance
 			performance.print();
 
 			performance.foreachRDD(rdd -> {
-				List<Tuple2<String, CountAndSum>> topCarriersByArrivalPerformance = rdd.takeOrdered(10,
+				List<Tuple2<String, CountAndSum>> topCarriersByArrivalPerformance = rdd.filter(FILTER_NA).takeOrdered(10,
 						new AverageComparator<>(Comparator.<CountAndSum> naturalOrder()));
 				System.out.println("--------------------------------------------------------------------------------------------");
 				System.out.println("Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
