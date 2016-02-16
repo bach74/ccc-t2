@@ -115,7 +115,9 @@ public final class TopAirlinesByOnTimePerformance
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
 			JavaPairDStream<String, Double> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
-					.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM);
+					//.reduceByKey(SUM_REDUCER)
+					//.updateStateByKey(COMPUTE_RUNNING_SUM)
+					;
 
 			Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
 
