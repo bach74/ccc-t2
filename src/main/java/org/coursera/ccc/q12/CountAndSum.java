@@ -1,6 +1,8 @@
 package org.coursera.ccc.q12;
 
-public class CountAndSum implements Comparable<CountAndSum>
+import java.io.Serializable;
+
+public class CountAndSum implements Comparable<CountAndSum>, Serializable
 {
 	private Double sum;
 	private Integer count;
