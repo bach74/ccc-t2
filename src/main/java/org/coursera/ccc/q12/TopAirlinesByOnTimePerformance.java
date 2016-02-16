@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
+import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
@@ -116,14 +117,36 @@ public final class TopAirlinesByOnTimePerformance
 			JavaPairDStream<String, Double> performance = airlinePerformance.mapToPair(s -> new Tuple2<>(s.getUniqueCarrier(), s.getArrDelayMinutes()))
 					.reduceByKey(SUM_REDUCER).updateStateByKey(COMPUTE_RUNNING_SUM);
 
+			Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
+
+			Function2<Tuple2<Double, Integer>, Double, Tuple2<Double, Integer>> addAndCount = (Tuple2<Double, Integer> x, Double y) -> {
+				return new Tuple2(x._1() + y, x._2() + 1);
+			};
+
+			Function2<Tuple2<Double, Integer>, Tuple2<Double, Integer>, Tuple2<Double, Integer>> combine = (Tuple2<Double, Integer> x,
+					Tuple2<Double, Integer> y) -> {
+				return new Tuple2(x._1() + y._1(), x._2() + y._2());
+			};
+
+			JavaPairDStream<String, Tuple2<Double, Integer>> combineByKey = performance.combineByKey(createAcc, addAndCount, combine,
+					new HashPartitioner(jssc.sc().defaultParallelism()));
+			
 			performance.print();
 
 			// Top 10 Airports by origin
 			performance.foreachRDD(rdd -> {
 				List<Tuple2<String, Double>> topCarriersByArrivalPerformance = rdd.takeOrdered(10, new ValueComparator<>(Comparator.<Double> naturalOrder()));
 				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("#="+rdd.count());
 				System.out.println("Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
+				System.out.println("--------------------------------------------------------------------------------------------");
+				return null;
+			});
+			
+			// Top 10 Airports by origin
+			combineByKey.foreachRDD(rdd -> {
+				List<Tuple2<String, Tuple2<Double, Integer>>> topCarriersByArrivalPerformance = rdd.take(5);
+				System.out.println("--------------------------------------------------------------------------------------------");
+				System.out.println("DEBUG: " + topCarriersByArrivalPerformance);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
 			});
