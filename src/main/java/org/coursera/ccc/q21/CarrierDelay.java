@@ -34,5 +34,11 @@ public class CarrierDelay implements Serializable
 	{
 		this.depDelayMinutes = depDelayMinutes;
 	}
+	
+	@Override
+	public String toString()
+	{
+		return "CarrierDelay [uniqueCarrier=" + uniqueCarrier + ", depDelayMinutes=" + depDelayMinutes + "]";
+	}
 
 }

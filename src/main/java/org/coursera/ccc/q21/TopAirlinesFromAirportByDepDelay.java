@@ -79,10 +79,6 @@ public final class TopAirlinesFromAirportByDepDelay
 		return x.contains("UniqueCarrier") ? false : true;
 	};
 
-	private static Function<Tuple2<String, CountAndSum>, Boolean> FILTER_NA = x -> {
-		return x._1().contains("#N.A.") ? false : true;
-	};
-
 
 	public static void main(String[] args)
 	{
