@@ -77,25 +77,9 @@ public final class TopAirlinesFromAirportByDepDelay
 		return new Tuple2<Double, Integer>(x._1() + y._1(), x._2() + y._2());
 	};
 
-	private static class AverageComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
-	{
-		private Comparator<V> comparator;
-
-		public AverageComparator(Comparator<V> comparator)
-		{
-			this.comparator = comparator;
-		}
-
-		@Override
-		public int compare(Tuple2<K, V> o1, Tuple2<K, V> o2)
-		{
-			return comparator.compare(o1._2(), o2._2());
-		}
-	}
-
 	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
 		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
-		agg.addAll(newRecords);		
+		agg.addAll(newRecords);
 		return Optional.of(new TreeSet<>(agg.stream().limit(10).collect(Collectors.toSet())));
 	};
 
@@ -151,13 +135,19 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			performance.print();
 
-			/*
-			 * performance.foreachRDD(rdd -> { List<Tuple2<String, CountAndSum>> topCarriersByArrivalPerformance = rdd.filter(FILTER_NA).takeOrdered(10, new
-			 * AverageComparator<>(Comparator.<CountAndSum> naturalOrder()));
-			 * System.out.println("--------------------------------------------------------------------------------------------"); System.out.println(
-			 * "Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
-			 * System.out.println("--------------------------------------------------------------------------------------------"); return null; });
-			 */
+			performance.foreachRDD(rdd -> {
+
+				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
+				System.out.println("--------------------------------------------------------------------------------------------");
+				for (Tuple2<String, Set<CarrierDelay>> t : topCarriersByDelay) {
+					String origin = t._1();
+					Set<CarrierDelay> listCarriers = t._2();
+					System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
+				}
+				System.out.println("--------------------------------------------------------------------------------------------");
+				return null;
+			});
+
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
