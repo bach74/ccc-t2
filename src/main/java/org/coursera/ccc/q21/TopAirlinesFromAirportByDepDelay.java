@@ -96,7 +96,8 @@ public final class TopAirlinesFromAirportByDepDelay
 	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
 		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
 		agg.addAll(newRecords);
-		return Optional.of(agg.stream().sorted().limit(10).collect(Collectors.toSet()));
+		//return Optional.of(agg.stream().sorted().limit(10).collect(Collectors.toSet()));
+		return Optional.of(agg);
 	};
 
 	private static Function<Tuple2<String, String>, String> mapLines = x -> x._2();
