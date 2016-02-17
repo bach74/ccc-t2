@@ -17,24 +17,26 @@
 package org.coursera.ccc.q21;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
+import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
-import org.coursera.ccc.q12.CountAndSum;
 
 import com.google.common.base.Optional;
 
@@ -49,6 +51,30 @@ import scala.Tuple2;
  */
 public final class TopAirlinesFromAirportByDepDelay
 {
+
+	private static PairFunction<Tuple2<String, Tuple2<Double, Integer>>, String, CarrierDelay> splitOriginCarrier = s -> {
+		String[] split = s._1().split("-");
+		if (split.length > 1) {
+			String origin = split[0];
+			String uniqueCarrier = split[1];
+			Double depDelayMinutesSum = s._2()._1();
+			Integer depDelayMinutesCount = s._2()._2();
+			return new Tuple2<>(origin, new CarrierDelay(uniqueCarrier, depDelayMinutesSum, depDelayMinutesCount));
+		}
+		return new Tuple2<>("#N.A", new CarrierDelay("#N.A", 99999.99, 1));
+
+	};
+
+	private static Function<Double, Tuple2<Double, Integer>> createAcc = x -> new Tuple2<Double, Integer>(x, 1);
+
+	private static Function2<Tuple2<Double, Integer>, Double, Tuple2<Double, Integer>> addAndCount = (Tuple2<Double, Integer> x, Double y) -> {
+		return new Tuple2<Double, Integer>(x._1() + y, x._2() + 1);
+	};
+
+	private static Function2<Tuple2<Double, Integer>, Tuple2<Double, Integer>, Tuple2<Double, Integer>> combine = (Tuple2<Double, Integer> x,
+			Tuple2<Double, Integer> y) -> {
+		return new Tuple2<Double, Integer>(x._1() + y._1(), x._2() + y._2());
+	};
 
 	private static class AverageComparator<K, V> implements Comparator<Tuple2<K, V>>, Serializable
 	{
@@ -66,10 +92,10 @@ public final class TopAirlinesFromAirportByDepDelay
 		}
 	}
 
-	private static Function2<List<CarrierDelay>, Optional<List<CarrierDelay>>, Optional<List<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
-		List<CarrierDelay> agg = currentRecords.or(new ArrayList<>());
-		agg.addAll(newRecords);
-		return Optional.of(agg);
+	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
+		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
+
+		return Optional.of(agg.stream().limit(10).collect(Collectors.toSet()));
 	};
 
 	private static Function<Tuple2<String, String>, String> mapLines = x -> x._2();
@@ -78,7 +104,6 @@ public final class TopAirlinesFromAirportByDepDelay
 	private static Function<String, Boolean> filterCsvHeader = x -> {
 		return x.contains("UniqueCarrier") ? false : true;
 	};
-
 
 	public static void main(String[] args)
 	{
@@ -114,23 +139,21 @@ public final class TopAirlinesFromAirportByDepDelay
 			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, List<CarrierDelay>> performance = airlinePerformance
-					.mapToPair(s -> new Tuple2<>(s.getOrigin(), new CarrierDelay(s.getUniqueCarrier(), s.getDepDelayMinutes())))
-					// .combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
-					// .combineByKey(createAcc, addAndCount, null, new HashPartitioner(jssc.sc().defaultParallelism()))
+			JavaPairDStream<String, Set<CarrierDelay>> performance = airlinePerformance
+					.mapToPair(s -> new Tuple2<>(s.getOrigin() + "-" + s.getUniqueCarrier(), s.getDepDelayMinutes()))
+					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
+					.mapToPair(splitOriginCarrier)
 					.updateStateByKey(mergeOrigins);
 
 			performance.print();
 
-/*			performance.foreachRDD(rdd -> {
-				List<Tuple2<String, CountAndSum>> topCarriersByArrivalPerformance = rdd.filter(FILTER_NA).takeOrdered(10,
-						new AverageComparator<>(Comparator.<CountAndSum> naturalOrder()));
-				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
-				System.out.println("--------------------------------------------------------------------------------------------");
-				return null;
-			});
-*/
+			/*
+			 * performance.foreachRDD(rdd -> { List<Tuple2<String, CountAndSum>> topCarriersByArrivalPerformance = rdd.filter(FILTER_NA).takeOrdered(10, new
+			 * AverageComparator<>(Comparator.<CountAndSum> naturalOrder()));
+			 * System.out.println("--------------------------------------------------------------------------------------------"); System.out.println(
+			 * "Top 10 Carriers by arrival Performance: " + topCarriersByArrivalPerformance);
+			 * System.out.println("--------------------------------------------------------------------------------------------"); return null; });
+			 */
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
