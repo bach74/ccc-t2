@@ -95,7 +95,7 @@ public final class TopAirlinesFromAirportByDepDelay
 
 	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
 		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
-
+		agg.addAll(newRecords);
 		return Optional.of(agg.stream().limit(10).collect(Collectors.toSet()));
 	};
 
@@ -105,11 +105,10 @@ public final class TopAirlinesFromAirportByDepDelay
 	private static Function<String, Boolean> filterCsvHeader = x -> {
 		return x.contains("UniqueCarrier") ? false : true;
 	};
-	
+
 	private static Function<Tuple2<String, Double>, Boolean> filterNA = x -> {
 		return x._1().contains("#N.A.") ? false : true;
 	};
-
 
 	public static void main(String[] args)
 	{
@@ -145,13 +144,10 @@ public final class TopAirlinesFromAirportByDepDelay
 			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, CarrierDelay> performance = airlinePerformance
-					.mapToPair(s -> new Tuple2<>(s.getOrigin() + "-" + s.getUniqueCarrier(), s.getDepDelayMinutes()))
-					.filter(filterNA)
-					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
-					.mapToPair(splitOriginCarrier)
-					//.updateStateByKey(mergeOrigins)
-					;
+			JavaPairDStream<String, Set<CarrierDelay>> performance = airlinePerformance
+					.mapToPair(s -> new Tuple2<>(s.getOrigin() + "-" + s.getUniqueCarrier(), s.getDepDelayMinutes())).filter(filterNA)
+					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism())).mapToPair(splitOriginCarrier)
+					.updateStateByKey(mergeOrigins);
 
 			performance.print();
 
