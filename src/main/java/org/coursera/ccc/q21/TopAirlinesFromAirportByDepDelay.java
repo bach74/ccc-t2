@@ -37,6 +37,7 @@ import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
+import org.coursera.ccc.q12.CountAndSum;
 
 import com.google.common.base.Optional;
 
@@ -104,6 +105,11 @@ public final class TopAirlinesFromAirportByDepDelay
 	private static Function<String, Boolean> filterCsvHeader = x -> {
 		return x.contains("UniqueCarrier") ? false : true;
 	};
+	
+	private static Function<Tuple2<String, Double>, Boolean> filterNA = x -> {
+		return x._1().contains("#N.A.") ? false : true;
+	};
+
 
 	public static void main(String[] args)
 	{
@@ -141,6 +147,7 @@ public final class TopAirlinesFromAirportByDepDelay
 			// This will give a Dstream made of state (which is the cumulative count of the words)
 			JavaPairDStream<String, Tuple2<Double, Integer>> performance = airlinePerformance
 					.mapToPair(s -> new Tuple2<>(s.getOrigin() + "-" + s.getUniqueCarrier(), s.getDepDelayMinutes()))
+					.filter(filterNA)
 					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
 					//.mapToPair(splitOriginCarrier)
 					//.updateStateByKey(mergeOrigins)
