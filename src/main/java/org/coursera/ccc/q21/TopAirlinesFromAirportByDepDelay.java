@@ -139,9 +139,9 @@ public final class TopAirlinesFromAirportByDepDelay
 			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, Double> performance = airlinePerformance
+			JavaPairDStream<String, Tuple2<Double, Integer>> performance = airlinePerformance
 					.mapToPair(s -> new Tuple2<>(s.getOrigin() + "-" + s.getUniqueCarrier(), s.getDepDelayMinutes()))
-					//.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
+					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism()))
 					//.mapToPair(splitOriginCarrier)
 					//.updateStateByKey(mergeOrigins)
 					;
