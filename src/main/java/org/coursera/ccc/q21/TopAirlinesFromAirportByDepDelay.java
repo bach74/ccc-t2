@@ -97,20 +97,21 @@ public final class TopAirlinesFromAirportByDepDelay
 
 	public static void main(String[] args)
 	{
-		if (args.length < 2) {
-			System.err.println("Usage: TopAirlinesFromAirportByDepDelay <brokers> <topics>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
+		if (args.length < 3) {
+			System.err.println("Usage: TopAirlinesFromAirportByDepDelay <brokers> <topics> <cassandraIP>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
 					+ "  <topics> is a list of one or more kafka topics to consume from\n\n");
 			System.exit(1);
 		}
 
 		String brokers = args[0];
 		String topics = args[1];
+		String cassandraIP = args[2];
 
 		// Create context with 2 second batch interval
 		SparkConf sparkConf = new SparkConf().setAppName("TopAirlinesFromAirportByDepDelay");
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10));
-				Cluster cluster = Cluster.builder().addContactPoint("54.173.149.116").build();
+				Cluster cluster = Cluster.builder().addContactPoint(cassandraIP).build();
 				Session session = cluster.connect("ccc")) {
 
 			// must set for statefull operations
