@@ -1,5 +1,6 @@
 package org.coursera.ccc.q21;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.BoundStatement;
@@ -12,6 +13,7 @@ import com.datastax.driver.core.Session;
 public class CassandraTest
 {
 	@Test
+	@Ignore
 	public void connect()
 	{
 		try (Cluster cluster = Cluster.builder().addContactPoint("54.173.149.116").build(); Session session = cluster.connect("ccc")) {
@@ -29,6 +31,7 @@ public class CassandraTest
 	}
 
 	@Test
+	@Ignore
 	public void save()
 	{
 		try (Cluster cluster = Cluster.builder().addContactPoint("54.173.149.116").build(); Session session = cluster.connect("ccc")) {
@@ -38,6 +41,7 @@ public class CassandraTest
 	}
 
 	@Test
+	@Ignore
 	public void testPrepare()
 	{
 
