@@ -16,9 +16,7 @@
  */
 package org.coursera.ccc.q21;
 
-import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -37,8 +35,11 @@ import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
-import org.coursera.ccc.q12.CountAndSum;
 
+import com.datastax.driver.core.BoundStatement;
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.Session;
 import com.google.common.base.Optional;
 
 import kafka.serializer.StringDecoder;
@@ -108,7 +109,9 @@ public final class TopAirlinesFromAirportByDepDelay
 		// Create context with 2 second batch interval
 		SparkConf sparkConf = new SparkConf().setAppName("TopAirlinesFromAirportByDepDelay");
 
-		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(4))) {
+		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10));
+				Cluster cluster = Cluster.builder().addContactPoint("54.173.149.116").build();
+				Session session = cluster.connect("ccc")) {
 
 			// must set for statefull operations
 			jssc.checkpoint(".");
@@ -135,13 +138,20 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			performance.print();
 
+			PreparedStatement statement = session.prepare("INSERT INTO origin_airline (origin, carrier, avg_delay) VALUES  (?,?,?);");
+			BoundStatement boundStatement = new BoundStatement(statement);
+
 			performance.foreachRDD(rdd -> {
 
+				// Insert one record into the users table
 				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				for (Tuple2<String, Set<CarrierDelay>> t : topCarriersByDelay) {
 					String origin = t._1();
 					Set<CarrierDelay> listCarriers = t._2();
+					for (CarrierDelay c : listCarriers) {
+						session.execute(boundStatement.bind(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
+					}
 					System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
 				}
 				System.out.println("--------------------------------------------------------------------------------------------");
@@ -153,5 +163,4 @@ public final class TopAirlinesFromAirportByDepDelay
 			jssc.awaitTermination();
 		}
 	}
-
 }
