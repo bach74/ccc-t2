@@ -120,10 +120,10 @@ public final class TopAirlinesFromAirportByDepDelay
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
 
-	//		prepareCassandraKeyspace(jssc);
-
 			// must set for statefull operations
 			jssc.checkpoint(".");
+
+			prepareCassandraKeyspace(jssc);
 
 			// initialize Kafka Consumer
 			JavaPairInputDStream<String, String> messages = createKafkaConsumerStream(brokers, topics, jssc);
