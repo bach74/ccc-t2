@@ -153,8 +153,7 @@ public final class TopAirlinesFromAirportByDepDelay
 				}
 
 				CassandraJavaUtil.javaFunctions(jssc.sc().parallelize(carrierDelays))
-						.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class))
-						.saveToCassandra();
+						.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
 				;
 
 				System.out.println("--------------------------------------------------------------------------------------------");
@@ -188,7 +187,7 @@ public final class TopAirlinesFromAirportByDepDelay
 		try (Session session = connector.openSession()) {
 			session.execute("DROP KEYSPACE IF EXISTS " + CASSANDRA_KEYSPACE);
 			session.execute("CREATE KEYSPACE " + CASSANDRA_KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
-			session.execute("CREATE TABLE " + CASSANDRA_TABLE
+			session.execute("CREATE " + CASSANDRA_KEYSPACE + ".TABLE " + CASSANDRA_TABLE
 					+ " (origin text, carrier text, avg_delay float, PRIMARY KEY (origin, carrier, avg_delay)) WITH CLUSTERING ORDER BY (avg_delay ASC, carrier ASC);");
 		}
 	}
