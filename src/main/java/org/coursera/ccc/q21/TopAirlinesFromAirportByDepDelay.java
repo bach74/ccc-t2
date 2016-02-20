@@ -140,19 +140,11 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			// performance.print();
 
-			Function<JavaPairRDD<String, Set<CarrierDelay>>, JavaRDD<CarrierDelayEntity>> transformFunc = e -> {
-				List<CarrierDelayEntity> carrierDelays = new ArrayList<>();
-				e.foreach(t -> {
-					String origin = t._1();
-					Set<CarrierDelay> listCarriers = t._2();
-					for (CarrierDelay c : listCarriers) {
-						carrierDelays.add(new CarrierDelayEntity(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
-					}
-				});
-				return jssc.sc().parallelize(carrierDelays);
-			};
-			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(transformFunc);
+			
+			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(new TransformToCassandraEntity(jssc));
 
+			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
+					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
 
 			performance.foreachRDD(rdd -> {
 				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
@@ -166,12 +158,10 @@ public final class TopAirlinesFromAirportByDepDelay
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
-			
+
 			System.out.println("---------------------------------------The end-----------------------------------------------------");
 			System.out.println(carrierDelays);
-			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
-			.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
-			
+
 		}
 	}
 
