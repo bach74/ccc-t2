@@ -16,6 +16,7 @@
  */
 package org.coursera.ccc.q21;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ import scala.Tuple2;
  *
  * Example: $ bin/run-example streaming.KafkaWordCount broker1-host:port,broker2-host:port topic1,topic2
  */
-public final class TopAirlinesFromAirportByDepDelay
+public final class TopAirlinesFromAirportByDepDelay implements Serializable
 {
 
 	private static final String CASSANDRA_TABLE = "origin_airline";
@@ -140,8 +141,18 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			// performance.print();
 
-			
-			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(new TransformToCassandraEntity(jssc));
+			Function<JavaPairRDD<String, Set<CarrierDelay>>, JavaRDD<CarrierDelayEntity>> transformFunc = e -> {
+				List<CarrierDelayEntity> carrierDelays = new ArrayList<>();
+				e.foreach(t -> {
+					String origin = t._1();
+					Set<CarrierDelay> listCarriers = t._2();
+					for (CarrierDelay c : listCarriers) {
+						carrierDelays.add(new CarrierDelayEntity(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
+					}
+				});
+				return jssc.sc().parallelize(carrierDelays);
+			};
+			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(transformFunc);
 
 			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
 					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
