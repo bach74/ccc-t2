@@ -43,16 +43,16 @@ public class WriteToCassandra implements Function<JavaPairRDD<String, Set<Carrie
 				// session.execute(boundStatement.bind(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
 				carrierDelays.add(new CarrierDelayEntity(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
 			}
-			System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
+//			System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
 		}
 
 		CassandraJavaUtil.javaFunctions(jssc.sc().parallelize(carrierDelays))
 				.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
 		;
 
-		System.out.println("--------------------------------------------------------------------------------------------");
-		System.out.println("Top 10 Carriers: " + topCarriersByDelay);
-		System.out.println("--------------------------------------------------------------------------------------------");
+//		System.out.println("--------------------------------------------------------------------------------------------");
+//		System.out.println("Top 10 Carriers: " + topCarriersByDelay);
+//		System.out.println("--------------------------------------------------------------------------------------------");
 		return null;
 	}
 }
