@@ -146,7 +146,6 @@ public final class TopAirlinesFromAirportByDepDelay
 					String origin = t._1();
 					Set<CarrierDelay> listCarriers = t._2();
 					for (CarrierDelay c : listCarriers) {
-						// session.execute(boundStatement.bind(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
 						carrierDelays.add(new CarrierDelayEntity(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
 					}
 					System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
@@ -154,7 +153,6 @@ public final class TopAirlinesFromAirportByDepDelay
 
 				CassandraJavaUtil.javaFunctions(jssc.sc().parallelize(carrierDelays))
 						.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
-				;
 
 				System.out.println("--------------------------------------------------------------------------------------------");
 				System.out.println("Top 10 Carriers: " + topCarriersByDelay);
