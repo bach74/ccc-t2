@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
 
 import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
@@ -40,6 +42,7 @@ import org.apache.spark.streaming.kafka.KafkaUtils;
 import com.datastax.driver.core.Session;
 import com.datastax.spark.connector.cql.CassandraConnector;
 import com.datastax.spark.connector.japi.CassandraJavaUtil;
+import com.datastax.spark.connector.japi.CassandraStreamingJavaUtil;
 import com.google.common.base.Optional;
 
 import kafka.serializer.StringDecoder;
@@ -137,22 +140,24 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			// performance.print();
 
-			performance.foreachRDD(rdd -> {
-
-				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
+			Function<JavaPairRDD<String, Set<CarrierDelay>>, JavaRDD<CarrierDelayEntity>> transformFunc = e -> {
 				List<CarrierDelayEntity> carrierDelays = new ArrayList<>();
-
-				for (Tuple2<String, Set<CarrierDelay>> t : topCarriersByDelay) {
+				e.foreach(t -> {
 					String origin = t._1();
 					Set<CarrierDelay> listCarriers = t._2();
 					for (CarrierDelay c : listCarriers) {
 						carrierDelays.add(new CarrierDelayEntity(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
 					}
-					System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
-				}
+				});
+				return jssc.sc().parallelize(carrierDelays);
+			};
+			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(transformFunc);
 
-				CassandraJavaUtil.javaFunctions(jssc.sc().parallelize(carrierDelays))
-						.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
+			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
+					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
+
+			performance.foreachRDD(rdd -> {
+				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
 
 				System.out.println("--------------------------------------------------------------------------------------------");
 				System.out.println("Top 10 Carriers: " + topCarriersByDelay);
