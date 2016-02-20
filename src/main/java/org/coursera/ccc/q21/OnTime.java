@@ -45,7 +45,7 @@ public class OnTime implements Serializable
 
 		String origin = m.group(6);
 		String uniqueCarrier = m.group(5);
-		String depDelayMinutes = m.group(9);
+		String depDelayMinutes = m.group(8);
 		Double delay = Doubles.tryParse(depDelayMinutes);
 		if (delay == null) {
 			delay = 0.0;
