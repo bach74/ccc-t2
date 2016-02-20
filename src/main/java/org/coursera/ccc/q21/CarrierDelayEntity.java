@@ -6,13 +6,13 @@ public class CarrierDelayEntity implements Serializable
 {
 	private String origin;
 	private String carrier;
-	private float avgDelay;
+	private Float avgDelay;
 
 	public CarrierDelayEntity()
 	{
 	}
 
-	public CarrierDelayEntity(String origin, String carrier, float avgDelay)
+	public CarrierDelayEntity(String origin, String carrier, Float avgDelay)
 	{
 		this.setOrigin(origin);
 		this.setCarrier(carrier);
@@ -39,12 +39,12 @@ public class CarrierDelayEntity implements Serializable
 		this.carrier = carrier;
 	}
 
-	public float getAvgDelay()
+	public Float getAvgDelay()
 	{
 		return avgDelay;
 	}
 
-	public void setAvgDelay(float avgDelay)
+	public void setAvgDelay(Float avgDelay)
 	{
 		this.avgDelay = avgDelay;
 	}
