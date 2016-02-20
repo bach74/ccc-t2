@@ -16,6 +16,7 @@
  */
 package org.coursera.ccc.q21;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,10 +37,9 @@ import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
 
-import com.datastax.driver.core.BoundStatement;
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+import com.datastax.spark.connector.cql.CassandraConnector;
+import com.datastax.spark.connector.japi.CassandraJavaUtil;
 import com.google.common.base.Optional;
 
 import kafka.serializer.StringDecoder;
@@ -53,6 +53,10 @@ import scala.Tuple2;
  */
 public final class TopAirlinesFromAirportByDepDelay
 {
+
+	private static final String CASSANDRA_TABLE = "origin_airline";
+
+	private static final String CASSANDRA_KEYSPACE = "ccc";
 
 	private static PairFunction<Tuple2<String, Tuple2<Double, Integer>>, String, CarrierDelay> splitOriginCarrier = s -> {
 		String[] split = s._1().split("-");
@@ -98,8 +102,8 @@ public final class TopAirlinesFromAirportByDepDelay
 	public static void main(String[] args)
 	{
 		if (args.length < 3) {
-			System.err.println("Usage: TopAirlinesFromAirportByDepDelay <brokers> <topics> <cassandraIP>\n" + "  <brokers> is a list of one or more Kafka brokers\n"
-					+ "  <topics> is a list of one or more kafka topics to consume from\n\n");
+			System.err.println("Usage: TopAirlinesFromAirportByDepDelay <brokers> <topics> <cassandraIP>\n"
+					+ "  <brokers> is a list of one or more Kafka brokers\n" + "  <topics> is a list of one or more kafka topics to consume from\n\n");
 			System.exit(1);
 		}
 
@@ -107,25 +111,19 @@ public final class TopAirlinesFromAirportByDepDelay
 		String topics = args[1];
 		String cassandraIP = args[2];
 
-		// Create context with 2 second batch interval
+		// Create context with 10 second batch interval
 		SparkConf sparkConf = new SparkConf().setAppName("TopAirlinesFromAirportByDepDelay");
+		sparkConf.set("spark.cassandra.connection.host", cassandraIP);
 
-		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10));
-				Cluster cluster = Cluster.builder().addContactPoint(cassandraIP).build();
-				Session session = cluster.connect("ccc")) {
+		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
+
+			prepareCassandraKeyspace(jssc);
 
 			// must set for statefull operations
 			jssc.checkpoint(".");
 
 			// initialize Kafka Consumer
-			HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
-			HashMap<String, String> kafkaParams = new HashMap<String, String>();
-			kafkaParams.put("metadata.broker.list", brokers);
-			// start from begin
-			kafkaParams.put("auto.offset.reset", "smallest");
-			// Create direct kafka stream with brokers and topics
-			JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(jssc, String.class, String.class, StringDecoder.class,
-					StringDecoder.class, kafkaParams, topicsSet);
+			JavaPairInputDStream<String, String> messages = createKafkaConsumerStream(brokers, topics, jssc);
 
 			JavaDStream<String> lines = messages.map(mapLines).filter(filterCsvHeader);
 
@@ -137,24 +135,30 @@ public final class TopAirlinesFromAirportByDepDelay
 					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism())).mapToPair(splitOriginCarrier)
 					.updateStateByKey(mergeOrigins);
 
-			performance.print();
-
-			PreparedStatement statement = session.prepare("INSERT INTO origin_airline (origin, carrier, avg_delay) VALUES  (?,?,?);");
-			BoundStatement boundStatement = new BoundStatement(statement);
+			// performance.print();
 
 			performance.foreachRDD(rdd -> {
 
-				// Insert one record into the users table
 				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
-				System.out.println("--------------------------------------------------------------------------------------------");
+				List<CarrierDelayEntity> carrierDelays = new ArrayList<>();
+
 				for (Tuple2<String, Set<CarrierDelay>> t : topCarriersByDelay) {
 					String origin = t._1();
 					Set<CarrierDelay> listCarriers = t._2();
 					for (CarrierDelay c : listCarriers) {
-						session.execute(boundStatement.bind(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
+						// session.execute(boundStatement.bind(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
+						carrierDelays.add(new CarrierDelayEntity(origin, c.getUniqueCarrier(), new Float(c.getDepDelayMinutes() / c.getCount())));
 					}
 					System.out.println("Top 10 Carriers from " + origin + " :" + listCarriers);
 				}
+
+				CassandraJavaUtil.javaFunctions(jssc.sc().parallelize(carrierDelays))
+						.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class))
+						.saveToCassandra();
+				;
+
+				System.out.println("--------------------------------------------------------------------------------------------");
+				System.out.println("Top 10 Carriers: " + topCarriersByDelay);
 				System.out.println("--------------------------------------------------------------------------------------------");
 				return null;
 			});
@@ -162,6 +166,30 @@ public final class TopAirlinesFromAirportByDepDelay
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
+		}
+	}
+
+	private static JavaPairInputDStream<String, String> createKafkaConsumerStream(String brokers, String topics, JavaStreamingContext jssc)
+	{
+		HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
+		HashMap<String, String> kafkaParams = new HashMap<String, String>();
+		kafkaParams.put("metadata.broker.list", brokers);
+		// start from begin
+		kafkaParams.put("auto.offset.reset", "smallest");
+		// Create direct kafka stream with brokers and topics
+		JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(jssc, String.class, String.class, StringDecoder.class,
+				StringDecoder.class, kafkaParams, topicsSet);
+		return messages;
+	}
+
+	private static void prepareCassandraKeyspace(JavaStreamingContext jssc)
+	{
+		CassandraConnector connector = CassandraConnector.apply(jssc.sc().getConf());
+		try (Session session = connector.openSession()) {
+			session.execute("DROP KEYSPACE IF EXISTS " + CASSANDRA_KEYSPACE);
+			session.execute("CREATE KEYSPACE " + CASSANDRA_KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+			session.execute("CREATE TABLE " + CASSANDRA_TABLE
+					+ " (origin text, carrier text, avg_delay float, PRIMARY KEY (origin, carrier, avg_delay)) WITH CLUSTERING ORDER BY (avg_delay ASC, carrier ASC);");
 		}
 	}
 }
