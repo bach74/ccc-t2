@@ -168,6 +168,7 @@ public final class TopAirlinesFromAirportByDepDelay
 			jssc.awaitTermination();
 			
 			System.out.println("---------------------------------------The end-----------------------------------------------------");
+			System.out.println(carrierDelays);
 			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
 			.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
 			
