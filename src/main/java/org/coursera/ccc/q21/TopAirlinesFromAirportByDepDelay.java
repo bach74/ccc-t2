@@ -187,8 +187,8 @@ public final class TopAirlinesFromAirportByDepDelay
 		try (Session session = connector.openSession()) {
 			session.execute("DROP KEYSPACE IF EXISTS " + CASSANDRA_KEYSPACE);
 			session.execute("CREATE KEYSPACE " + CASSANDRA_KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
-			session.execute("CREATE " + CASSANDRA_KEYSPACE + ".TABLE " + CASSANDRA_TABLE
-					+ " (origin text, carrier text, avg_delay float, PRIMARY KEY (origin, carrier, avg_delay)) WITH CLUSTERING ORDER BY (avg_delay ASC, carrier ASC);");
+			session.execute("CREATE TABLE if not exists " + CASSANDRA_KEYSPACE + "." + CASSANDRA_TABLE
+					+ " (origin text, carrier text, avg_delay float, PRIMARY KEY (origin, avg_delay, carrier)) WITH CLUSTERING ORDER BY (avg_delay ASC, carrier ASC)");
 		}
 	}
 }
