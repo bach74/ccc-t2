@@ -153,8 +153,8 @@ public final class TopAirlinesFromAirportByDepDelay
 			};
 			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(transformFunc);
 
-			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
-					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
+//			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
+//					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
 
 			performance.foreachRDD(rdd -> {
 				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
@@ -168,6 +168,9 @@ public final class TopAirlinesFromAirportByDepDelay
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
+			
+			System.out.println("---------------------------------------The end-----------------------------------------------------");
+			
 		}
 	}
 
