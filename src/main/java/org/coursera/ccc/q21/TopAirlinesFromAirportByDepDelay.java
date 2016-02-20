@@ -120,7 +120,7 @@ public final class TopAirlinesFromAirportByDepDelay
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
 
-			prepareCassandraKeyspace(jssc);
+	//		prepareCassandraKeyspace(jssc);
 
 			// must set for statefull operations
 			jssc.checkpoint(".");
@@ -153,8 +153,8 @@ public final class TopAirlinesFromAirportByDepDelay
 			};
 			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(transformFunc);
 
-			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
-					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
+//			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
+//					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
 
 			performance.foreachRDD(rdd -> {
 				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
