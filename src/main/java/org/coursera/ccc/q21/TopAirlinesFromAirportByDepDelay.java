@@ -16,7 +16,6 @@
  */
 package org.coursera.ccc.q21;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,8 +26,6 @@ import java.util.stream.Collectors;
 
 import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
@@ -41,8 +38,6 @@ import org.apache.spark.streaming.kafka.KafkaUtils;
 
 import com.datastax.driver.core.Session;
 import com.datastax.spark.connector.cql.CassandraConnector;
-import com.datastax.spark.connector.japi.CassandraJavaUtil;
-import com.datastax.spark.connector.japi.CassandraStreamingJavaUtil;
 import com.google.common.base.Optional;
 
 import kafka.serializer.StringDecoder;
@@ -120,10 +115,10 @@ public final class TopAirlinesFromAirportByDepDelay
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
 
+			prepareCassandraKeyspace(jssc);
+
 			// must set for statefull operations
 			jssc.checkpoint(".");
-
-			prepareCassandraKeyspace(jssc);
 
 			// initialize Kafka Consumer
 			JavaPairInputDStream<String, String> messages = createKafkaConsumerStream(brokers, topics, jssc);
@@ -140,28 +135,11 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			// performance.print();
 
-			
-			JavaDStream<CarrierDelayEntity> carrierDelays = performance.transform(new TransformToCassandraEntity(jssc));
-
-			CassandraStreamingJavaUtil.javaFunctions(carrierDelays)
-					.writerBuilder(CASSANDRA_KEYSPACE, CASSANDRA_TABLE, CassandraJavaUtil.mapToRow(CarrierDelayEntity.class)).saveToCassandra();
-
-			performance.foreachRDD(rdd -> {
-				List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
-
-				System.out.println("--------------------------------------------------------------------------------------------");
-				System.out.println("Top 10 Carriers: " + topCarriersByDelay);
-				System.out.println("--------------------------------------------------------------------------------------------");
-				return null;
-			});
+			performance.foreachRDD(new WriteToCassandra(jssc));
 
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
-
-			System.out.println("---------------------------------------The end-----------------------------------------------------");
-			System.out.println(carrierDelays);
-
 		}
 	}
 
