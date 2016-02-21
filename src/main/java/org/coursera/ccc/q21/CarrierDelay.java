@@ -49,14 +49,11 @@ public class CarrierDelay implements Serializable, Comparable<CarrierDelay>
 	{
 		double avgDelay1 = this.depDelayMinutes / this.count;
 		double avgDelay2 = o.getDepDelayMinutes() / o.getCount();
-		
-		if (avgDelay1 > avgDelay2) {
+
+		if (avgDelay1 >= avgDelay2) {
 			return 1;
 		}
-		if (avgDelay1 < avgDelay2) {
-			return -1;
-		}
-		return 0;
+		return -1;
 	}
 
 	public Integer getCount()
