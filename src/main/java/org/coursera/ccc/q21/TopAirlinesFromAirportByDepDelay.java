@@ -52,8 +52,6 @@ import scala.Tuple2;
  */
 public final class TopAirlinesFromAirportByDepDelay
 {
-
-	private static final AtomicLong runningCount = new AtomicLong(0);
 	
 	private static final String CASSANDRA_TABLE = "origin_airline";
 
@@ -86,9 +84,7 @@ public final class TopAirlinesFromAirportByDepDelay
 	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
 		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
 		agg.addAll(newRecords);
-		runningCount.addAndGet(newRecords.size());
 		return Optional.of(new TreeSet<>(agg.stream().limit(10).collect(Collectors.toSet())));
-		//return Optional.of(agg);
 	};
 
 	private static Function<Tuple2<String, String>, String> mapLines = x -> x._2();
@@ -147,7 +143,6 @@ public final class TopAirlinesFromAirportByDepDelay
 			jssc.awaitTermination();
 			
 			System.out.println("------------THE END-------------------------------------------");
-			System.out.println("  # Processed = " + runningCount);
 			
 		}
 	}
