@@ -33,7 +33,7 @@ public class WriteToCassandra implements Function<JavaPairRDD<String, Set<Carrie
 	public Void call(JavaPairRDD<String, Set<CarrierDelay>> rdd) throws Exception
 	{
 
-		List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(10);
+		List<Tuple2<String, Set<CarrierDelay>>> topCarriersByDelay = rdd.take(100);
 		List<CarrierDelayEntity> carrierDelays = new ArrayList<>();
 
 		for (Tuple2<String, Set<CarrierDelay>> t : topCarriersByDelay) {
