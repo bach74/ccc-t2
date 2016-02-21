@@ -141,6 +141,9 @@ public final class TopAirlinesFromAirportByDepDelay
 			// Start the computation
 			jssc.start();
 			jssc.awaitTermination();
+			
+			System.out.println("------------THE END-------------------------------------------");
+			System.out.println("  # Processed = "+OnTime.getRunningcount());
 		}
 	}
 
