@@ -1,7 +1,6 @@
 package org.coursera.ccc.q21;
 
 import java.io.Serializable;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -13,9 +12,7 @@ import com.google.common.primitives.Doubles;
  */
 public class OnTime implements Serializable
 {
-	
-	private static final AtomicLong runningCount = new AtomicLong(0);
-	
+
 	// private static final String ONTIME_PATTERN =
 	// "^(\\d+),(\\d+),(\\d+),(\\d{4}-\\d{2}-\\d{2}),\"(\\S+)\",\"(\\S+)\",\"(\\S+)\",(\\d+[\\.\\d+]?),(\\d+[\\.\\d+]?)";
 
@@ -52,7 +49,7 @@ public class OnTime implements Serializable
 		if (delay == null) {
 			delay = 0.0;
 		}
-		runningCount.incrementAndGet();
+
 		return new OnTime(uniqueCarrier, delay, origin);
 	}
 
@@ -92,8 +89,4 @@ public class OnTime implements Serializable
 		this.origin = origin;
 	}
 
-	public static AtomicLong getRunningcount()
-	{
-		return runningCount;
-	}
 }

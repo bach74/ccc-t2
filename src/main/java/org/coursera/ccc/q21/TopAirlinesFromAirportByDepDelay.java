@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import org.apache.spark.HashPartitioner;
@@ -52,6 +53,8 @@ import scala.Tuple2;
 public final class TopAirlinesFromAirportByDepDelay
 {
 
+	private static final AtomicLong runningCount = new AtomicLong(0);
+	
 	private static final String CASSANDRA_TABLE = "origin_airline";
 
 	private static final String CASSANDRA_KEYSPACE = "ccc";
@@ -83,6 +86,8 @@ public final class TopAirlinesFromAirportByDepDelay
 	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
 		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
 		agg.addAll(newRecords);
+		runningCount.addAndGet(newRecords.size());
+		System.out.println("  # Processed = " + runningCount);
 		//return Optional.of(new TreeSet<>(agg.stream().limit(10).collect(Collectors.toSet())));
 		return Optional.of(agg);
 	};
@@ -143,7 +148,7 @@ public final class TopAirlinesFromAirportByDepDelay
 			jssc.awaitTermination();
 			
 			System.out.println("------------THE END-------------------------------------------");
-			System.out.println("  # Processed = "+OnTime.getRunningcount());
+			
 		}
 	}
 
