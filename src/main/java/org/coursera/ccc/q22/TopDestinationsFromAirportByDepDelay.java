@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.coursera.ccc.q21;
+package org.coursera.ccc.q22;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import org.apache.spark.HashPartitioner;
@@ -50,23 +49,23 @@ import scala.Tuple2;
  *
  * Example: $ bin/run-example streaming.KafkaWordCount broker1-host:port,broker2-host:port topic1,topic2
  */
-public final class TopAirlinesFromAirportByDepDelay
+public final class TopDestinationsFromAirportByDepDelay
 {
 	
-	private static final String CASSANDRA_TABLE = "origin_airline";
+	private static final String CASSANDRA_TABLE = "origin_destination";
 
 	private static final String CASSANDRA_KEYSPACE = "ccc";
 
-	private static PairFunction<Tuple2<String, Tuple2<Double, Integer>>, String, CarrierDelay> splitOriginCarrier = s -> {
+	private static PairFunction<Tuple2<String, Tuple2<Double, Integer>>, String, AirportDelay> splitOriginDestination = s -> {
 		String[] split = s._1().split("-");
 		if (split.length > 1) {
 			String origin = split[0];
-			String uniqueCarrier = split[1];
+			String destination = split[1];
 			Double depDelayMinutesSum = s._2()._1();
 			Integer depDelayMinutesCount = s._2()._2();
-			return new Tuple2<>(origin, new CarrierDelay(uniqueCarrier, depDelayMinutesSum, depDelayMinutesCount));
+			return new Tuple2<>(origin, new AirportDelay(destination, depDelayMinutesSum, depDelayMinutesCount));
 		}
-		return new Tuple2<>("#N.A", new CarrierDelay("#N.A", 99999.99, 1));
+		return new Tuple2<>("#N.A", new AirportDelay("#N.A", 99999.99, 1));
 
 	};
 
@@ -81,8 +80,8 @@ public final class TopAirlinesFromAirportByDepDelay
 		return new Tuple2<Double, Integer>(x._1() + y._1(), x._2() + y._2());
 	};
 
-	private static Function2<List<CarrierDelay>, Optional<Set<CarrierDelay>>, Optional<Set<CarrierDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
-		Set<CarrierDelay> agg = currentRecords.or(new TreeSet<>());
+	private static Function2<List<AirportDelay>, Optional<Set<AirportDelay>>, Optional<Set<AirportDelay>>> mergeOrigins = (newRecords, currentRecords) -> {
+		Set<AirportDelay> agg = currentRecords.or(new TreeSet<>());
 		agg.addAll(newRecords);
 		return Optional.of(new TreeSet<>(agg.stream().limit(10).collect(Collectors.toSet())));
 	};
@@ -91,7 +90,7 @@ public final class TopAirlinesFromAirportByDepDelay
 
 	// Return a new DStream by selecting only the records of the source DStream on which func returns true
 	private static Function<String, Boolean> filterCsvHeader = x -> {
-		return x.contains("UniqueCarrier") ? false : true;
+		return x.contains("Destination") ? false : true;
 	};
 
 	private static Function<Tuple2<String, Double>, Boolean> filterNA = x -> {
@@ -101,7 +100,7 @@ public final class TopAirlinesFromAirportByDepDelay
 	public static void main(String[] args)
 	{
 		if (args.length < 3) {
-			System.err.println("Usage: TopAirlinesFromAirportByDepDelay <brokers> <topics> <cassandraIP>\n"
+			System.err.println("Usage: TopDestinationsFromAirportByDepDelay <brokers> <topics> <cassandraIP>\n"
 					+ "  <brokers> is a list of one or more Kafka brokers\n" + "  <topics> is a list of one or more kafka topics to consume from\n\n");
 			System.exit(1);
 		}
@@ -111,7 +110,7 @@ public final class TopAirlinesFromAirportByDepDelay
 		String cassandraIP = args[2];
 
 		// Create context with 10 second batch interval
-		SparkConf sparkConf = new SparkConf().setAppName("TopAirlinesFromAirportByDepDelay");
+		SparkConf sparkConf = new SparkConf().setAppName("TopDestinationsFromAirportByDepDelay");
 		sparkConf.set("spark.cassandra.connection.host", cassandraIP);
 
 		try (JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(10))) {
@@ -126,16 +125,14 @@ public final class TopAirlinesFromAirportByDepDelay
 
 			JavaDStream<String> lines = messages.map(mapLines).filter(filterCsvHeader);
 
-			JavaDStream<OnTime> airlinePerformance = lines.map(OnTime::parseOneLine);
+			JavaDStream<OnTimeQ22> airlinePerformance = lines.map(OnTimeQ22::parseOneLine);
 
 			// This will give a Dstream made of state (which is the cumulative count of the words)
-			JavaPairDStream<String, Set<CarrierDelay>> performance = airlinePerformance
+			JavaPairDStream<String, Set<AirportDelay>> performance = airlinePerformance
 					.mapToPair(s -> new Tuple2<>(s.getKey(), s.getDepDelayMinutes())).filter(filterNA)
-					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism())).mapToPair(splitOriginCarrier)
+					.combineByKey(createAcc, addAndCount, combine, new HashPartitioner(jssc.sc().defaultParallelism())).mapToPair(splitOriginDestination)
 					.updateStateByKey(mergeOrigins);
 
-			
-			
 			// performance.print();
 
 			performance.foreachRDD(new WriteToCassandra(jssc));
@@ -169,7 +166,7 @@ public final class TopAirlinesFromAirportByDepDelay
 			//session.execute("DROP KEYSPACE IF EXISTS " + CASSANDRA_KEYSPACE);
 			session.execute("CREATE KEYSPACE if not exists " + CASSANDRA_KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
 			session.execute("CREATE TABLE if not exists " + CASSANDRA_KEYSPACE + "." + CASSANDRA_TABLE
-					+ " (origin text, carrier text, avg_delay float, PRIMARY KEY (origin, avg_delay, carrier)) WITH CLUSTERING ORDER BY (avg_delay ASC, carrier ASC)");
+					+ " (origin text, destination text, avg_delay float, PRIMARY KEY (origin, avg_delay, destination)) WITH CLUSTERING ORDER BY (avg_delay ASC, destination ASC)");
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package org.coursera.ccc.q21;
+package org.coursera.ccc.q22;
 
 import java.io.Serializable;
 import java.util.regex.Matcher;
@@ -10,7 +10,7 @@ import com.google.common.primitives.Doubles;
  * This class represents an OnTime CSV format. "Year","Month","DayofMonth","FlightDate","UniqueCarrier","Origin","Dest","DepDelayMinutes","DepDelayMinutes"
  * 2008,1,3,2008-01-03,"WN","HOU","LIT",18.00,16.00
  */
-public class OnTime implements Serializable
+public class OnTimeQ22 implements Serializable
 {
 
 	// private static final String ONTIME_PATTERN =
@@ -20,53 +20,53 @@ public class OnTime implements Serializable
 
 	private static final Pattern PATTERN = Pattern.compile(ONTIME_PATTERN);
 
-	private String uniqueCarrier;
+	private String destination;
 
 	private Double depDelayMinutes;
 
 	private String origin;
 
-	public OnTime(String uniqueCarrier, Double depDelayMinutes, String origin)
+	public OnTimeQ22(String destination, Double depDelayMinutes, String origin)
 	{
-		this.uniqueCarrier = uniqueCarrier;
+		this.destination = destination;
 		this.depDelayMinutes = depDelayMinutes;
-		this.setOrigin(origin);
+		this.origin = origin;
 	}
 
-	public static OnTime parseOneLine(String line)
+	public static OnTimeQ22 parseOneLine(String line)
 	{
 		Matcher m = PATTERN.matcher(line);
 		if (!m.find()) {
 			// LOGGER.log(Level.SEVERE, "Cannot parse on_time line" + line);
 			// throw new RuntimeException("Error parsing on_time line" + line);
-			return new OnTime("#N.A.", 99999999.0, "#N.A.");
+			return new OnTimeQ22("#N.A.", 99999999.0, "#N.A.");
 		}
 
 		String origin = m.group(6);
-		String uniqueCarrier = m.group(5);
+		String destination = m.group(7);
 		String depDelayMinutes = m.group(8);
 		Double delay = Doubles.tryParse(depDelayMinutes);
 		if (delay == null) {
 			delay = 0.0;
 		}
 
-		return new OnTime(uniqueCarrier, delay, origin);
+		return new OnTimeQ22(destination, delay, origin);
 	}
 
 	@Override
 	public String toString()
 	{
-		return String.format("%s %s %f", getOrigin(), uniqueCarrier, depDelayMinutes);
+		return String.format("%s %s %f", origin, destination, depDelayMinutes);
 	}
 
-	public String getUniqueCarrier()
+	public String getDestination()
 	{
-		return uniqueCarrier;
+		return destination;
 	}
 
-	public void setUniqueCarrier(String uniqueCarrier)
+	public void setDestination(String destination)
 	{
-		uniqueCarrier = this.uniqueCarrier;
+		destination = this.destination;
 	}
 
 	public Double getDepDelayMinutes()
@@ -91,7 +91,7 @@ public class OnTime implements Serializable
 
 	public String getKey()
 	{
-		 return this.origin + "-" + this.getUniqueCarrier();
+		return this.origin + "-" + this.destination;
 	}
 
 }
